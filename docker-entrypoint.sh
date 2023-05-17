@@ -60,6 +60,38 @@ docker_create_db_directories() {
 	fi
 }
 
+# TODO make these opt-in / opt-out (https://github.com/docker-library/postgres/issues/159#issuecomment-1042466970)
+docker_temp_create_initdb_location() {
+	[ -z "${dockerTempOrigPGDATA:-}" ]
+	dockerTempOrigPGDATA="$PGDATA"
+	export PGDATA="$PGDATA/.docker-initdb"
+	if [ -s "$PGDATA/PG_VERSION" ]; then
+		{
+			echo
+			echo "Error: '$PGDATA' exists and appears to contain a database!"
+			echo '  this usually means a previous initialization attempt failed'
+			echo '  it is recommended to check logs for previous container runs'
+			echo
+		} >&2
+		exit 1
+	fi
+	echo "Using '$PGDATA' as a temporary PGDATA for initialization ..."
+}
+docker_temp_migrate_initdb_location() {
+	if [ -n "${dockerTempOrigPGDATA:-}" ]; then
+		# TODO balk if "$dockerTempOrigPGDATA/PG_VERSION" or if *not* "$PGDATA/PG_VERSION" !!! (if we have two initialized databases or don't have one at all)
+		echo "Migrating '$PGDATA' back to '$dockerTempOrigPGDATA' ..."
+		# TODO use find -mindepth -maxdepth instead of dotglob
+		(
+			shopt -s dotglob
+			mv -ft "$dockerTempOrigPGDATA" "$PGDATA"/*
+		)
+		rmdir "$PGDATA"
+		export PGDATA="$dockerTempOrigPGDATA"
+		unset ORIG_PGDATA
+	fi
+}
+
 # initialize empty PGDATA directory with new database via 'initdb'
 # arguments to `initdb` can be passed via POSTGRES_INITDB_ARGS or as arguments to this function
 # `initdb` automatically creates the "postgres", "template0", and "template1" dbnames
@@ -315,6 +347,8 @@ _main() {
 			# check dir permissions to reduce likelihood of half-initialized database
 			ls /docker-entrypoint-initdb.d/ > /dev/null
 
+			docker_temp_create_initdb_location
+
 			docker_init_database_dir
 			pg_setup_hba_conf "$@"
 
@@ -328,6 +362,8 @@ _main() {
 
 			docker_temp_server_stop
 			unset PGPASSWORD
+
+			docker_temp_migrate_initdb_location
 
 			cat <<-'EOM'
 
