@@ -10,13 +10,6 @@ supportedAlpineVersions=(
 	3.19
 	3.18
 )
-defaultDebianSuite="${supportedDebianSuites[0]}"
-declare -A debianSuites=(
-)
-defaultAlpineVersion="${supportedAlpineVersions[0]}"
-declare -A alpineVersions=(
-	#[14]='3.16'
-)
 
 cd "$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
@@ -79,8 +72,8 @@ fetch_suite_arches() {
 for version in "${versions[@]}"; do
 	export version
 
-	versionAlpineVersion="${alpineVersions[$version]:-$defaultAlpineVersion}"
-	versionDebianSuite="${debianSuites[$version]:-$defaultDebianSuite}"
+	versionAlpineVersion="${supportedAlpineVersions[0]}"
+	versionDebianSuite="${supportedDebianSuites[0]}"
 	export versionAlpineVersion versionDebianSuite
 
 	doc="$(jq -nc '{
